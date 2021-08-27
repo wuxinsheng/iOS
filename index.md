@@ -18,12 +18,14 @@ Mach-O通常应用于可执行文件、目标代码、动态库、内核转储�
 在NeXTSTEP和Mac OS X中，可以将多个Mach-O文件组合进一个多重架构二进制文件中，以用一个单独的二进制文件支持多种架构的指令集。这种称为胖二进制文件(即：Fat binary文件)。
 
 Mach-O文件类型众多，常见的一些Mach-O文件类型如下：
-MH_OBJECT    目标文件，.o结尾的文件
-MH_EXECUTE    可执行文件，我们平时编译后的包中的执行文件
-MH_DYLIB    一些动态库，该文件夹下很多/usr/lib/xxx.dylib
-MH_DSYM        符号文件，编译成功后XXX.app.dSYM
 
-Mach-O文件结构布局
+* MH_OBJECT    目标文件，.o结尾的文件
+* MH_EXECUTE    可执行文件，我们平时编译后的包中的执行文件
+* MH_DYLIB    一些动态库，该文件夹下很多/usr/lib/xxx.dylib
+* MH_DSYM        符号文件，编译成功后XXX.app.dSYM
+
+**Mach-O文件结构布局**
+
 * Header部分。Header定义了文件的基本信息，包括文件的大小、文件类型、试用平台、文件的架构等
 * Load commands，这一部分定义了详细的加载指令，指明如何加载到内存，从哪个内存地址开始到哪个内存地址结束。不同段在Mach-O文件中的位置，大小分布。
 * Data部分，包括了代码段，数据段，符号表等具体的二进制数据。
@@ -48,7 +50,7 @@ Mach-O文件结构布局
 
 ![image](https://user-images.githubusercontent.com/16996959/130942741-1a8b493b-2c44-4596-89e5-482e9d6bad6a.png)
 
-“__debug_line”模块
+**“__debug_line”模块**
 
 这个模块里包含有代码文件行号信息，根据dwarf格式去一个一个解析
 
@@ -63,8 +65,10 @@ Mach-O文件结构布局
 
 #### 2、可执行文件的加载过程
 
-ALSR：地址空间随机化
-VM Address：在没有ALSR调价下，加载到手机内存中的地址
+`ALSR：地址空间随机化`
+
+`VM Address：在没有ALSR调价下，加载到手机内存中的地址`
+
 dSYM文件的函数代码存放在_TEXT段中，全局变量存储在_DATA段中。
 
 ![image](https://user-images.githubusercontent.com/16996959/130943054-d658209d-35ff-43f2-9132-865159483af3.png)
@@ -76,12 +80,13 @@ ASLR随机产生的Offset：0x5000，也就是可执行文
 
 VM Address是编译后Image的起始位置，Load Address是在运行时加载到虚拟内存的起始位置，Offset是加载到内存的偏移，这个偏移值是一个随机值，每次运行都不相同，有下面公式：
 
-Load Address = VM Address + Offset
+`Load Address = VM Address + Offset`
 
 由于dSYM符号表是编译时生成的地址，crash堆栈的地址是运行时地址，这个时候需要经过转换才能正确的符号化。crash日志里的符号地址被称为Stack Address，而编译后的符号地址被称为Symbol Address，他们的关系如下：
 
-Stack Address = Symbol Address + Offset
-运行时地址 = 编译后地址 + 偏移量
+`Stack Address = Symbol Address + Offset`
+
+`运行时地址 = 编译后地址 + 偏移量`
 
 符号化就是通过Symbol Address到dSYM文件中寻找对应符号信息的过程。
 
@@ -90,9 +95,12 @@ Stack Address = Symbol Address + Offset
 ![image](https://user-images.githubusercontent.com/16996959/130943152-75c31423-417c-4ec2-a6dc-3c5abb82b965.png)
 
   我们使用SDK中NSSetUncaughtExceptionHandler函数来捕获异常处理，但功能有限。像内存访问错误，重复释放等Signal错误无法处理。
+  
   崩溃收集统计函数应该只进行一次调用，如果用第三方的话也最好只用一个第三方，这样我们获取崩溃统计信息的途径也是唯一的。
+  
   第三方统计工具并不是用的越多越好，使用多个崩溃收集第三方会导致NSSetUncaughtExceptionHandler()函数指针的恶意覆盖，导致有些第三方不能收到崩溃信息。
 现在很多第三方崩溃收集工具为了确保自己能最大可能的收集到崩溃信息，会对NSSetUncaughtExceptionHandler()函数指针的恶意覆盖。因为这个函数是将函数地址当做参数传递，所以只要重复调用就会被覆盖，这样就不能保证崩溃收集的稳定性。
+
   我们解析崩溃信息时，看到崩溃堆栈只有main.m文件中的崩溃，并且可以确定不是因为main.m文件中的bug导致的崩溃，就基本可以确定是NSSetUncaughtExceptionHandler()函数指针被恶意覆盖。
   
 ### 三、崩溃日志
@@ -104,9 +112,12 @@ Stack Address = Symbol Address + Offset
 #### 1、Exception Type
 
 1）EXC_BAD_ACCESS：此类型是最常见的crash, 当进程尝试的去访问一个不可用或者不允许访问的内存空间时，会发生野指针异常，Exception Subtype中包含了错误的描述及想要访问的地址。我们可以通过以下方法来发生我们APP里面的野指针问题： 
-如果objc_msgSend、objc_retain和objc_release符号信息位于crash线程的最上面，说明该进程可能尝试访问已经释放的对象。我们可以使用Zombies instrument更好地了解此次崩溃的情况。
-如果gpus_ReturnNotPermittedKillClient符号在crash线程的最上面，说明进程试图在后台使用OpenGL ES或Metal进行渲染。 
-在debug模式下打开Address Sanitizer，它会在编译的时候自动添加一些关于内存访问的工具，在crash发生的时候，Xcode会给出对应的详细信息。
+
+> 如果objc_msgSend、objc_retain和objc_release符号信息位于crash线程的最上面，说明该进程可能尝试访问已经释放的对象。我们可以使用Zombies instrument更好地了解此次崩溃的情况。
+>
+> 如果gpus_ReturnNotPermittedKillClient符号在crash线程的最上面，说明进程试图在后台使用OpenGL ES或Metal进行渲染。 
+>
+>在debug模式下打开Address Sanitizer，它会在编译的时候自动添加一些关于内存访问的工具，在crash发生的时候，Xcode会给出对应的详细信息。
  
 2）SIGSEGV：通常由于重复释放对象导致, 一般在ARC以后很少见到
 3）SIGABRT：收到Abort信号退出, 通常Foundtion库中的容器为了保护状态正常会做一些检测, 例如插入nil到数据中等会遇到此类错误
