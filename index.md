@@ -113,49 +113,54 @@ VM Address是编译后Image的起始位置，Load Address是在运行时加载�
 
 1）EXC_BAD_ACCESS：此类型是最常见的crash, 当进程尝试的去访问一个不可用或者不允许访问的内存空间时，会发生野指针异常，Exception Subtype中包含了错误的描述及想要访问的地址。我们可以通过以下方法来发生我们APP里面的野指针问题： 
 
-> * 如果objc_msgSend、objc_retain和objc_release符号信息位于crash线程的最上面，说明该进程可能尝试访问已经释放的对象。我们可以使用Zombies instrument更好地了解此次崩溃的情况。
+> 如果objc_msgSend、objc_retain和objc_release符号信息位于crash线程的最上面，说明该进程可能尝试访问已经释放的对象。我们可以使用Zombies instrument更好地了解此次崩溃的情况。
 >
-> * 如果gpus_ReturnNotPermittedKillClient符号在crash线程的最上面，说明进程试图在后台使用OpenGL ES或Metal进行渲染。 
+> 如果gpus_ReturnNotPermittedKillClient符号在crash线程的最上面，说明进程试图在后台使用OpenGL ES或Metal进行渲染。 
 >
-> * 在debug模式下打开Address Sanitizer，它会在编译的时候自动添加一些关于内存访问的工具，在crash发生的时候，Xcode会给出对应的详细信息。
+> 在debug模式下打开Address Sanitizer，它会在编译的时候自动添加一些关于内存访问的工具，在crash发生的时候，Xcode会给出对应的详细信息。
  
-2）SIGSEGV：通常由于重复释放对象导致, 一般在ARC以后很少见到
+2）SIGSEGV：通常由于重复释放对象导致, 一般在ARC以后很少见到  
 
-3）SIGABRT：收到Abort信号退出, 通常Foundtion库中的容器为了保护状态正常会做一些检测, 例如插入nil到数据中等会遇到此类错误
+3）SIGABRT：收到Abort信号退出, 通常Foundtion库中的容器为了保护状态正常会做一些检测, 例如插入nil到数据中等会遇到此类错误  
 
     **野指针错误形式在Xcode中通常表现为：**
     
-> * Thread 1：EXC_BAD_ACCESS(code=EXC_I386_GPFLT)错误。因为你访问了一块已经不属于你的内存。
+> Thread 1：EXC_BAD_ACCESS(code=EXC_I386_GPFLT)错误。因为你访问了一块已经不属于你的内存。
 > 
-> * 非正常退出，大多数发生这种crash的原因是因为未捕获的Objective-C/C++异常，导致进程调用abort()方法退出。
+> 非正常退出，大多数发生这种crash的原因是因为未捕获的Objective-C/C++异常，导致进程调用abort()方法退出。
 > 
-> * 如果APP消耗了太多的时间在初始化，watchdog（看门狗定时器）Exception Type: 00000020就会终止程序运行。
+> 如果APP消耗了太多的时间在初始化，watchdog（看门狗定时器）Exception Type: 00000020就会终止程序运行。
 
-4）SEGV(Segmentation Violation): 代表无效内存地址, 比如空指针, 未初始化指针, 栈溢出等
+4）SEGV(Segmentation Violation): 代表无效内存地址, 比如空指针, 未初始化指针, 栈溢出等  
 
-5）SIGBUS:总栈错误, 与SIGSEGV不同的是, SIGSEGV访问的是无效的地址, 而SIGBUS访问的是有效的地址, 但是总栈访问异常(如地址对齐问题)
+5）SIGBUS:总栈错误, 与SIGSEGV不同的是, SIGSEGV访问的是无效的地址, 而SIGBUS访问的是有效的地址, 但是总栈访问异常(如地址对齐问题)  
 
-6）SIGILL: 尝试执行非法的指令, 可能不被识别或者没有权限
+6）SIGILL: 尝试执行非法的指令, 可能不被识别或者没有权限  
 
-7）SIGFPE: 数学计算相关问题, 比如除零操作
+7）SIGFPE: 数学计算相关问题, 比如除零操作  
 
-8）SIGIPIPE: 管道另一端没有进程接手数据
+8）SIGIPIPE: 管道另一端没有进程接手数据  
 
-9）EXC_BAD_INSTRUCTION：此类异常通常由于线程执行非法指令导致
+9）EXC_BAD_INSTRUCTION：此类异常通常由于线程执行非法指令导致  
 
-10）EXC_ARITHMETIC：除零错误会抛出此类异常
+10）EXC_ARITHMETIC：除零错误会抛出此类异常  
 
 11）SIGQUIT：该进程在具有管理其生命周期的权限的另一进程的请求下终止。 SIGQUIT并不意味着进程崩溃，但是可以说明该进程存在一些问题。
-    比如在iOS中，第三方键盘应用可能在在其他APP中被唤起，但是如果键盘应用需要很长的时间去加载，则会被强制退出。
+    比如在iOS中，第三方键盘应用可能在在其他APP中被唤起，但是如果键盘应用需要很长的时间去加载，则会被强制退出。  
     
-12）其他十六进制的代码：
+12）其他十六进制的代码：  
 
-> * 0xbaaaaaad：该code表示这个crash文件是系统的stackshot，并不是crash report，可以通过按住home+voice按键生成；
-> * 0xbad22222：一个VoIP应用启动恢复的次数太频繁；
-> * 0x8badf00d： “ate bad food”。看门狗定时器超时，一般是因为APP启动的时间过长或者响应系统事件事件超时导致；比如在主线程进行网络请求，主线程会一直卡住知道网络回调回来；Exception Type: 00000020 
-> * 0xc00010ff ： 当操作系统响应thermal事件的时候，会强制的kill进程。
-> * 0xdead10cc： dead lock。进程在suspend期间保持在文件锁或sqlite数据库锁。 
-> * 0xdeadfa11:  “dead fall”! 该代码表示应用是被用户强制退出的。根据苹果文档, 强制退出发生在用户长按开关按钮直到出现 “滑动来关机”, 然后长按 Home按钮。强制退出将产生 包含0xdeadfa11 异常编码的崩溃日志, 因为大多数是强制退出是因为应用阻塞了界面。
+> 0xbaaaaaad：该code表示这个crash文件是系统的stackshot，并不是crash report，可以通过按住home+voice按键生成；
+> 
+> 0xbad22222：一个VoIP应用启动恢复的次数太频繁；
+> 
+> 0x8badf00d： “ate bad food”。看门狗定时器超时，一般是因为APP启动的时间过长或者响应系统事件事件超时导致；比如在主线程进行网络请求，主线程会一直卡住知道网络回调回来；Exception Type: 00000020 
+> 
+> 0xc00010ff ： 当操作系统响应thermal事件的时候，会强制的kill进程。
+> 
+> 0xdead10cc： dead lock。进程在suspend期间保持在文件锁或sqlite数据库锁。 
+> 
+> 0xdeadfa11:  “dead fall”! 该代码表示应用是被用户强制退出的。根据苹果文档, 强制退出发生在用户长按开关按钮直到出现 “滑动来关机”, 然后长按 Home按钮。强制退出将产生 包含0xdeadfa11 异常编码的崩溃日志, 因为大多数是强制退出是因为应用阻塞了界面。
 
 #### 2、Exception Subtype
 
