@@ -95,7 +95,7 @@ VM Address是编译后Image的起始位置，Load Address是在运行时加载�
 
 ### 二、APP崩溃的基础知识
 
-![A05D8EC8-DF36-4449-AB96-32D91C2B1EB4](https://user-images.githubusercontent.com/16996959/131060561-378973e9-0e42-4dca-a03a-e08ec93093dd.jpg)
+<img width="915" alt="9FFC4B6A-06B9-4BB4-B5E4-D88B77AD5D5C" src="https://user-images.githubusercontent.com/16996959/131063291-1dcaa25b-ec44-478a-9197-c26ae1932c13.png">
 
 我们使用SDK中NSSetUncaughtExceptionHandler函数来捕获异常处理，但功能有限。像内存访问错误，重复释放等Signal错误无法处理。
   
