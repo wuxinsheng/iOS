@@ -97,6 +97,10 @@ VM Address是编译后Image的起始位置，Load Address是在运行时加载�
 
 <img width="915" alt="9FFC4B6A-06B9-4BB4-B5E4-D88B77AD5D5C" src="https://user-images.githubusercontent.com/16996959/131063291-1dcaa25b-ec44-478a-9197-c26ae1932c13.png">
 
+iOS的crash分为两类，一类是NSException异常，另一类是Signal信号异常。这两类异常我们都可以通过注册相关函数来捕获。
+
+**一类是NSException异常**
+
 我们使用SDK中NSSetUncaughtExceptionHandler函数来捕获异常处理，但功能有限。像内存访问错误，重复释放等Signal错误无法处理。
   
 崩溃收集统计函数应该只进行一次调用，如果用第三方的话也最好只用一个第三方，这样我们获取崩溃统计信息的途径也是唯一的。
@@ -104,8 +108,61 @@ VM Address是编译后Image的起始位置，Load Address是在运行时加载�
 第三方统计工具并不是用的越多越好，使用多个崩溃收集第三方会导致NSSetUncaughtExceptionHandler()函数指针的恶意覆盖，导致有些第三方不能收到崩溃信息。
 现在很多第三方崩溃收集工具为了确保自己能最大可能的收集到崩溃信息，会对NSSetUncaughtExceptionHandler()函数指针的恶意覆盖。因为这个函数是将函数地址当做参数传递，所以只要重复调用就会被覆盖，这样就不能保证崩溃收集的稳定性。
 
-我们解析崩溃信息时，看到崩溃堆栈只有main.m文件中的崩溃，并且可以确定不是因为main.m文件中的bug导致的崩溃，就基本可以确定是NSSetUncaughtExceptionHandler()函数指针被恶意覆盖。
-  
+我们解析崩溃信息时，看到崩溃堆栈只有main.m文件中的崩溃，并且可以确定不是因为main.m文件中的bug导致的崩溃，就基本可以确定是NSSetUncaughtExceptionHandler()函数指针被恶意覆盖。  
+
+**Signal信号捕获**
+
+Signal信号是由iOS底层mach信号异常转换后以signal信号抛出的异常。既然是兼容posix标准的异常，我们同样可以通过sigaction函数注册对应的信号。
+
+因为signal信号有很多，有些信号在iOS应用中也不会产生，我们只需要注册常见的几类信号：
+
+```
+SIGILL  4   非法指令      执行了非法指令. 通常是因为可执行文件本身出现错误, 或者试图执行数据段. 堆栈溢出时也有可能产生这个信号.
+SIGABRT 6   调用abort    程序自己发现错误并调用abort时产生,一些C库函数中，如strlen
+SIGSFPE 8   浮点运算错误  如除0操作
+SIGSEGV 11  段非法错误    试图访问未分配给自己的内存, 或试图往没有写权限的内存地址写数据,空指针，数组越界，栈溢出等
+```
+
+注册一个`SIGABRT`信号，在注册handler之前，需要保存之前注册的hander:
+
+```Objective-C
+void RegisterSignalHandler() {
+    struct sigaction old_action;
+    sigaction(SIGABRT, NULL, &old_action);
+    if (old_action.sa_flags & SA_SIGINFO) {
+        SignalHandlerFunc handler = (SignalHandlerFunc)old_action.sa_sigaction;
+        if (handler != MySignalHandler) {
+            // 保存OldAbrtSignalHandler
+            OldAbrtSignalHandler = handler;
+        }
+    }
+    
+    // 注册MySignalHandler
+    struct sigaction action;
+    action.sa_sigaction = MySignalHandler;
+    action.sa_flags = SA_NODEFER | SA_SIGINFO;
+    sigemptyset(&action.sa_mask);
+    sigaction(signal, &action, 0);
+}
+```
+
+处理完成后，抛出handler:
+
+```Objective-C
+static void MySignalHandler(int signal, siginfo_t* info, void* context) {
+    
+    // do something...
+    
+    // 处理前者注册的 handler
+    if (signal == SIGABRT) {
+        if (OldAbrtSignalHandler) {
+            OldAbrtSignalHandler(signal, info, context);
+        }
+    }
+}
+```
+
+
 ### 三、崩溃日志
 
 ![image](https://user-images.githubusercontent.com/16996959/130943276-f0ecf64c-43b9-405d-9d38-189b1fbf0533.png)
